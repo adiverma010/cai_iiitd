@@ -31,6 +31,10 @@ _ROMAN_HINDI = re.compile(
     r"\b(?:hai|hain|ho|ko|ke|ki|ka|se|ghar|chahiye|bukhar|dard|papa|mummy|mujhe|karwana|karani|nahi|nahin)\b",
     re.IGNORECASE,
 )
+_ENGLISH_CUES = re.compile(
+    r"\b(?:i|we|my|our|have|has|need|want|please|for|with|the|and|or|doctor|nurse|home|visit|test|fever|cough|symptom)\b",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -111,6 +115,8 @@ def detect_language(text: str, requested_language: str) -> str:
     if normalized != "auto":
         return requested_language.strip()
     if re.search(r"[\u0900-\u097f]", text):
+        if _ENGLISH_CUES.search(text):
+            return "Hinglish"
         return "Hindi"
     if _ROMAN_HINDI.search(text):
         return "Hinglish"
@@ -207,9 +213,20 @@ def match_caregivers(
     matches: list[dict[str, object]] = []
     for score, caregiver, distance in ranked[: max(1, min(limit, 3))]:
         if distance is None:
-            reason = f"{language}-speaking, available for teleconsultation, rating {caregiver.rating:.1f}/5"
+            if language == "Hindi":
+                reason = f"टेली-परामर्श के लिए उपलब्ध, रेटिंग {caregiver.rating:.1f}/5"
+            elif language == "Hinglish":
+                reason = f"Teleconsultation ke liye available, rating {caregiver.rating:.1f}/5"
+            else:
+                reason = f"English-speaking, available for teleconsultation, rating {caregiver.rating:.1f}/5"
         else:
-            reason = f"{language}-speaking, {distance:.1f} km away, available until {caregiver.free_until.strftime('%H:%M')} IST"
+            until = caregiver.free_until.strftime("%H:%M")
+            if language == "Hindi":
+                reason = f"हिंदी बोलते हैं, {distance:.1f} किमी दूर, {until} IST तक उपलब्ध"
+            elif language == "Hinglish":
+                reason = f"Hindi aur English bolte hain, {distance:.1f} km door, {until} IST tak available"
+            else:
+                reason = f"English-speaking, {distance:.1f} km away, available until {until} IST"
             if required_skills:
                 reason += ", has a relevant skill"
         matches.append({"caregiver_id": caregiver.caregiver_id, "score": score, "reason": reason})

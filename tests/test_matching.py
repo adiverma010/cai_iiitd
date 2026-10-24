@@ -1,7 +1,7 @@
 import unittest
 from datetime import datetime
 
-from carecompass.matching import IST, load_caregivers, match_caregivers
+from carecompass.matching import IST, detect_language, load_caregivers, match_caregivers
 from carecompass.schemas import CareType, Location
 
 
@@ -10,6 +10,12 @@ NOW = datetime(2026, 10, 24, 10, 0, tzinfo=IST)
 
 
 class CaregiverMatchingTests(unittest.TestCase):
+    def test_auto_language_detection_handles_supported_scripts_and_ambiguous_english(self) -> None:
+        self.assertEqual(detect_language("पापा को बुखार है", "auto"), "Hindi")
+        self.assertEqual(detect_language("papa ko bukhar hai", "auto"), "Hinglish")
+        self.assertEqual(detect_language("मुझे fever है", "auto"), "Hinglish")
+        self.assertEqual(detect_language("Hi", "auto"), "English")
+
     def test_injection_match_respects_role_skill_language_active_time_and_radius(self) -> None:
         location = Location(lat=28.4704, lng=77.5004)
         matches = match_caregivers(CareType.HOME_NURSING, "injection at home", "English", location, ROSTER, NOW)

@@ -48,8 +48,7 @@ class TriageRequest(BaseModel):
     @field_validator("user_input", "language")
     @classmethod
     def reject_blank_text(cls, value: str) -> str:
-        value = value.strip()
-        if not value:
+        if not value.strip():
             raise ValueError("must not be blank")
         return value
 

@@ -60,6 +60,48 @@ class TriageRoutingTests(unittest.TestCase):
                 self.assertIsNone(result.urgency)
                 self.assertEqual(result.matched_caregivers, [])
 
+    def test_clarification_questions_target_missing_route_information(self) -> None:
+        cases = (
+            ("doctor chahiye", "main concern ya symptom"),
+            ("I need a nurse", "nursing task"),
+            ("I have a fever", "home visit or a doctor consultation"),
+            ("I need a test", "Which test or sample collection"),
+        )
+        for text, expected_question in cases:
+            with self.subTest(text=text):
+                result = decide(make_request(text), CAREGIVERS, NOW)
+                self.assertIn(expected_question, result.follow_up_question or "")
+                self.assertIsNone(result.care_type)
+                self.assertIsNone(result.urgency)
+                self.assertEqual(result.matched_caregivers, [])
+
+    def test_specific_route_needs_no_irrelevant_clarification(self) -> None:
+        result = decide(make_request("I have a fever and need a home visit"), CAREGIVERS, NOW)
+        self.assertIsNone(result.follow_up_question)
+        self.assertEqual(result.care_type, CareType.PARAMEDIC_HOME_VISIT)
+
+    def test_clarification_uses_prior_turns_without_repeating_the_symptom_question(self) -> None:
+        request = make_request(
+            "I have had a fever for two days",
+            [{"role": "user", "text": "doctor chahiye"}],
+        )
+        result = decide(request, CAREGIVERS, NOW)
+        self.assertIn("home visit chahiye ya doctor consultation", result.follow_up_question or "")
+        self.assertNotIn("main concern or symptom", result.follow_up_question or "")
+
+    def test_auto_detected_language_localizes_follow_up_and_reasoning(self) -> None:
+        hindi = decide(make_request("डॉक्टर चाहिए"), CAREGIVERS, NOW)
+        hinglish = decide(make_request("doctor chahiye, papa ko bukhar hai"), CAREGIVERS, NOW)
+        self.assertIn("डॉक्टर", hindi.follow_up_question or "")
+        self.assertIn("home visit", hinglish.follow_up_question or "")
+
+        routed = decide(make_request("घर पर जांच चाहिए"), CAREGIVERS, NOW)
+        self.assertIn("आपके अनुरोध", routed.reasoning)
+
+    def test_request_validator_preserves_nonblank_user_text_exactly(self) -> None:
+        original = "  I have pain  "
+        self.assertEqual(make_request(original).user_input, original)
+
     def test_history_red_flags_override_current_turn_intent(self) -> None:
         request = make_request(
             "Please send a nurse for an injection",
